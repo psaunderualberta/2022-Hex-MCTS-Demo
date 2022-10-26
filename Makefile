@@ -10,9 +10,15 @@
 # ------------------------------------------------------------
 
 # ------------------------------------------------------------
+directory=src
 filename=main
 target=$(filename)
-source=$(filename).cpp game.cpp mcts.cpp utility.cpp
+
+source=$(directory)/$(filename).cpp \
+		$(directory)/game.cpp \
+		$(directory)/mcts.cpp \
+		$(directory)/utility.cpp
+
 allFiles=Makefile $(source) *.h
 compiler=g++ -Wall -Wextra -Werror -pedantic -g
 # ------------------------------------------------------------
