@@ -14,13 +14,16 @@ struct Game {
     bool first_move;
     TYPES* board = NULL;
     int move_cnt;
+    vector<vector<int>> neighbours;
+    int size_of_board_array;
 };
 
 void init_game(Game* game, int board_size);
+void init_neighbours(Game* game);
 void show_board(Game* game);
 void swap(Game* game);
 void unset(Game* game, int move);
-bool check_win(Game* game);
+bool check_win(Game* game, TYPES color);
 
 int make_move(Game* game);
 void seto(Game* game, string str);
