@@ -28,6 +28,16 @@ int main(int argc, char** argv) {
     vector<string> cmd;
     do {
         cmd = getCmd();
+        if (cmd[0] == "init_board")
+            init_game(game, atoi(cmd[1].c_str()));
+        if (cmd[0] == "show_board")
+            show_board(game);
+        if (cmd[0] == "seto")
+            seto(game, cmd[1]);
+        if (cmd[0] == "sety")
+            sety(game, cmd[1]);
+        if (cmd[0] == "check_win")
+            check_win(game);
 
     } while (cmd.size() && cmd[0] != "quit");
 

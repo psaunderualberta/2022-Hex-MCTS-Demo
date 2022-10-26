@@ -10,17 +10,14 @@ void init_game(Game* game, int board_size) {
 
     // Create board size
     game->board_size = board_size;
-    game->size_of_board_array = game->board_size * (game->board_size + 1) + 1;
 
     if (game->board != NULL)
         free(game->board);
-    game->board = (TYPES*) malloc(game->size_of_board_array * sizeof(TYPES));
 
-    for (int i = 0; i < game->size_of_board_array; i++) {
-        if (i % game->board_size == 0)
-            game->board[i] = BORDER;
-        else
-            game->board[i] = EMPTY;
+    game->board = (TYPES*) malloc(game->board_size * game->board_size * sizeof(TYPES));
+
+    for (int i = 0; i < game->board_size * game->board_size; i++) {
+        game->board[i] = EMPTY;
     }
 
     // Initialize neighbours
@@ -36,25 +33,55 @@ void init_game(Game* game, int board_size) {
  */
 void init_neighbours(Game* game) {
     game->neighbours.clear();
-    vector<int> offsets = { -1, 1, -game->board_size, game->board_size, -game->board_size+1, game->board_size-1 };
-    int pos;
 
-    for (int i = 0; i < game->size_of_board_array; i++) {
+    vector<int> offsets_normal = {-1, 1, -game->board_size, game->board_size, -game->board_size+1, game->board_size-1 };
+    vector<int> offsets_left   = {    1, -game->board_size, game->board_size, -game->board_size+1                    };
+    vector<int> offsets_right  = {-1,    -game->board_size, game->board_size,                     game->board_size-1 };
+    vector<int> offsets;
+
+    for (int i = 0; i < game->board_size * game->board_size; i++ ) {
         game->neighbours.push_back(vector<int>());
-        if (game->board[i] == BORDER)
-            continue;
+        if ((i+1) % game->board_size == 0)
+            offsets = offsets_right;
+        else if (i % game->board_size == 0)
+            offsets = offsets_left;
+        else
+            offsets = offsets_normal;
 
         for (auto& offset : offsets) {
-            pos = i + offset;
-            if (0 <= pos && pos < game->size_of_board_array && game->board[pos] != BORDER)
-                game->neighbours.back().push_back(pos);
+            if (0 <= i + offset && i + offset < game->board_size * game->board_size)
+                game->neighbours.back().push_back(i + offset);
         }
     }
+
+    return;
 }
 
-// void show_board(Game* game) {
+/**
+ * @brief Prints a human-readable state of the board to stdout
+ * 
+ * @param game The current state of the game.
+ */
+void show_board(Game* game) {
+    int space_cnt = 0;
 
-// }
+    for (int i = 0; i < game->board_size * game->board_size; i++) {
+        if (i % game->board_size == 0) {
+            cout << endl;
+            space_cnt++;
+            for (int _ = 0; _ < space_cnt; _++)
+                cout << " ";
+        }
+        if (game->board[i] == WHITE)
+            cout << "W ";
+        else if (game->board[i] == BLACK)
+            cout << "B ";
+        else
+            cout << ". ";
+    }
+
+    cout << endl;
+}
 
 /**
  * @brief Swaps the colors of the two players. This can only be done on the first move
@@ -69,6 +96,7 @@ void swap(Game* game) {
     TYPES t = game->own_color;
     game->own_color = game->opp_color;
     game->opp_color = t;
+    game->move_cnt++;
 
     return;
 }
@@ -93,41 +121,67 @@ void unset(Game* game, string move) {
  * @return true 
  * @return false 
  */
-bool check_win(Game* game, TYPES color) {
-    vector<bool> seen(game->size_of_board_array, false);
+bool check_win(Game* game) {
+    vector<bool> seen(game->board_size * game->board_size, false);
     string coord;
-    int move;
+    TYPES current_color;
+    int minPos, maxPos, minModPos, maxModPos;
+    vector<int>::size_type pos;
 
-    for (int i = 0; i < game->board_size; i++) {
+    for (int move = 0; move < game->board_size * game->board_size; move++) {
         // TODO: Establish which direction to look
-        coord = to_string('a' + i) + "0";
-        move = str_to_move(game, coord);
-        if (game->board[move] == color && !seen[move]) {
+        if (game->board[move] != EMPTY && !seen[move]) {
+            current_color = game->board[move];
             vector<int> bfs = { move };
             seen[move] = true;
-            vector<int>::size_type pos = 0;
+            pos = 0;
+
+            // Get the best locations of the current path
+            minPos = move, maxPos = move;
+            minModPos = move % game->board_size, maxModPos = move % game->board_size;
 
             while (pos < bfs.size()) {
-                move = bfs[i];
+                move = bfs[pos];
                 for (auto& next_move : game->neighbours[move]) {
-                    if (next_move == color && !seen[move]) {
+                    if (game->board[next_move] != EMPTY && !seen[next_move]) {
 
-                        // win condition
-                        coord = move_to_string(game, next_move);
-                        if (coord[0] == 'a' + game->board_size)
+                        minPos = min(minPos, next_move);
+                        minModPos = min(minModPos, next_move % game->board_size);
+                        maxPos = max(maxPos, next_move);
+                        maxModPos = max(maxModPos, next_move % game->board_size);
+
+                        // win conditions
+                        // White touches left & right sides
+                        // Black touches top & bottom
+                        if (current_color == WHITE && minModPos == 0 && maxModPos == game->board_size - 1) {
+                            cout << (game->own_color == WHITE ? 1 : -1) << endl;
                             return true;
+                        } else if (current_color == BLACK && minPos < game->board_size && game->board_size * (game->board_size - 1) <= maxPos) {
+                            cout << (game->own_color == BLACK ? 1 : -1) << endl;
+                            return true;
+                        }
 
                         bfs.push_back(next_move);
                         seen[next_move] = true;
                     }
                 }
+
+                pos++;
             }
         }
     }
 
+    // No winner yet
+    cout << "0" << endl;
     return false;
 }
 
+// /**
+//  * @brief Performs the actual MCTS search
+//  * 
+//  * @param game 
+//  * @return int 
+//  */
 // int make_move(Game* game) {
 
 // }
@@ -194,8 +248,8 @@ int str_to_move(Game* game, string str) {
  * @return string 
  */
 string move_to_string(Game* game, int move) {
-    string letter = to_string(move / game->board_size + 'a'); 
-    string number = to_string(move % game->board_size + 1);
+    string result(1, move / game->board_size + 'a');
+    result += to_string(move % game->board_size + 1);
 
-    return letter + number;
+    return result;
 }
