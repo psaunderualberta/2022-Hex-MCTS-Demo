@@ -1,21 +1,12 @@
 #ifndef __GAME_H__
 #define __GAME_H__
 #include "utility.h"
+#include "mcts.h"
 #include <iostream>
 #include <string>
 #include <cstring>
 
 using namespace std;
-
-struct Game {
-    int board_size;
-    TYPES own_color;
-    TYPES opp_color;
-    bool first_move;
-    TYPES* board = NULL;
-    int move_cnt;
-    vector<vector<int>> neighbours;
-};
 
 void init_game(Game* game, int board_size);
 void init_neighbours(Game* game);
@@ -24,7 +15,7 @@ void swap(Game* game);
 void unset(Game* game, int move);
 bool check_win(Game* game);
 
-int make_move(Game* game);
+void make_move(Game* game);
 void seto(Game* game, string str);
 void sety(Game* game, string str);
 

@@ -150,7 +150,7 @@ bool check_win(Game* game) {
                         maxPos = max(maxPos, next_move);
                         maxModPos = max(maxModPos, next_move % game->board_size);
 
-                        // win conditions
+                        // Win conditions
                         // White touches left & right sides
                         // Black touches top & bottom
                         if (current_color == WHITE && minModPos == 0 && maxModPos == game->board_size - 1) {
@@ -176,15 +176,25 @@ bool check_win(Game* game) {
     return false;
 }
 
-// /**
-//  * @brief Performs the actual MCTS search
-//  * 
-//  * @param game 
-//  * @return int 
-//  */
-// int make_move(Game* game) {
+/**
+ * @brief Performs the actual MCTS search
+ * 
+ * @param game 
+ */
+void make_move(Game* game) {
+    Game* game_copy = new struct Game;
+    init_game(game_copy, game->board_size);
 
-// }
+    // Perform the MCTS search
+    int coord = MCTS(game_copy);
+
+    // Convert to human-readable form
+    string move = move_to_string(game, coord);
+    cout << move << endl;
+    sety(game, move);
+
+    return;
+}
 
 /**
  * @brief

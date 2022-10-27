@@ -6,15 +6,21 @@
 
 using namespace std;
 
-struct mcts_node {
-
-};
-
 enum TYPES {
     WHITE,
     BLACK,
     BORDER,
     EMPTY
+};
+
+struct Game {
+    int board_size;
+    TYPES own_color;
+    TYPES opp_color;
+    bool first_move;
+    TYPES* board = NULL;
+    int move_cnt;
+    vector<vector<int>> neighbours;
 };
 
 vector<string> tokenize(string s, string delimiter);

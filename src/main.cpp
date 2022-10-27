@@ -38,6 +38,8 @@ int main(int argc, char** argv) {
             sety(game, cmd[1]);
         if (cmd[0] == "check_win")
             check_win(game);
+        if (cmd[0] == "make_move")
+            make_move(game);
 
     } while (cmd.size() && cmd[0] != "quit");
 
