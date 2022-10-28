@@ -184,6 +184,8 @@ bool check_win(Game* game) {
 void make_move(Game* game) {
     Game* game_copy = new struct Game;
     init_game(game_copy, game->board_size);
+    game_copy->own_color = game->own_color;
+    game_copy->opp_color = game->opp_color;
 
     // Perform the MCTS search
     int coord = MCTS(game_copy);

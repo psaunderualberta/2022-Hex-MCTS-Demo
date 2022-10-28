@@ -16,11 +16,11 @@ enum TYPES {
 
 struct Game {
     int board_size;
+    int move_cnt;
+    bool swap_occur;
     TYPES own_color;
     TYPES opp_color;
-    bool first_move;
     TYPES* board = NULL;
-    int move_cnt;
     vector<vector<int>> neighbours;
 };
 
