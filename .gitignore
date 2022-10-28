@@ -34,3 +34,6 @@ HexBot
 
 # Test files
 *.data
+
+# IDE stuff
+.vscode

@@ -40,6 +40,8 @@ int main(int argc, char** argv) {
             check_win(game);
         if (cmd[0] == "make_move")
             make_move(game);
+        else
+            cout << "Unknown command: " << cmd[0] << endl;
 
     } while (cmd.size() && cmd[0] != "quit");
 

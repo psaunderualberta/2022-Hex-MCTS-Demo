@@ -2,12 +2,14 @@
 #define __MCTS_H__
 #include "utility.h"
 
-const int TIMEOUT = 10;
+const int TIMEOUT = 1;
 
 struct mcts_node {
-    int visits;
+    int visits = 0;
     int* actions;
     int* values;
+    mcts_node* children;
+    TYPES player;
 };
 
 int MCTS(Game* game);
