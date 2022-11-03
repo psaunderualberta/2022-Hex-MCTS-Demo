@@ -11,10 +11,10 @@ void init_game(Game* game, int board_size) {
     // Create board size
     game->board_size = board_size;
 
-    if (game->board != NULL)
-        free(game->board);
-
-    game->board = (TYPES*) malloc(game->board_size * game->board_size * sizeof(TYPES));
+    if (board_size > MAX_BOARD_SIZE) {
+        cout << "ERROR: Board size must be less than " << MAX_BOARD_SIZE << endl;
+        exit(1);
+    }
 
     for (int i = 0; i < game->board_size * game->board_size; i++) {
         game->board[i] = EMPTY;
@@ -121,7 +121,7 @@ void unset(Game* game, string move) {
  * @return true 
  * @return false 
  */
-bool check_win(Game* game) {
+TYPES check_win(Game* game) {
     vector<bool> seen(game->board_size * game->board_size, false);
     string coord;
     TYPES current_color;
@@ -154,11 +154,11 @@ bool check_win(Game* game) {
                         // White touches left & right sides
                         // Black touches top & bottom
                         if (current_color == WHITE && minModPos == 0 && maxModPos == game->board_size - 1) {
-                            cout << (game->own_color == WHITE ? 1 : -1) << endl;
-                            return true;
+                            // cout << (game->own_color == WHITE ? 1 : -1) << endl;
+                            return WHITE;
                         } else if (current_color == BLACK && minPos < game->board_size && game->board_size * (game->board_size - 1) <= maxPos) {
-                            cout << (game->own_color == BLACK ? 1 : -1) << endl;
-                            return true;
+                            // cout << (game->own_color == BLACK ? 1 : -1) << endl;
+                            return BLACK;
                         }
 
                         bfs.push_back(next_move);
@@ -172,8 +172,8 @@ bool check_win(Game* game) {
     }
 
     // No winner yet
-    cout << "0" << endl;
-    return false;
+    // cout << "0" << endl;
+    return EMPTY;
 }
 
 /**
@@ -182,18 +182,172 @@ bool check_win(Game* game) {
  * @param game 
  */
 void make_move(Game* game) {
-    Game* game_copy = new struct Game;
-    init_game(game_copy, game->board_size);
-    game_copy->own_color = game->own_color;
-    game_copy->opp_color = game->opp_color;
-
     // Perform the MCTS search
-    int coord = MCTS(game_copy);
+    int best_move = 0;
+    int depth = 0;
+    int board_size = pow(game->board_size, 2);
+    TYPES to_move = game->own_color;
+
+    Game game_copy = *game;
+    // Initialize the root node of the search tree.
+    mcts_node* root = new struct mcts_node;
+    root->player = game->own_color;
+
+    root->visits = 0;
+    root->checked = 0;
+    root->size = 0;
+    root->actions = 0;
+    root->value = 0.0;
+    root->result = EMPTY;
+    root->player = game->own_color;
+    root->children = NULL;
+
+    init_mcts_node(root, game, game->own_color);
+
+    time_t start = time(nullptr);
+    vector<mcts_node*> history(board_size + 1);
+
+    mcts_node* current;
+    mcts_node* next;
+    TYPES result;
+    int best_ucb_value;
+
+    // Actual MCTS loop
+    while (time(nullptr) < start + TIMEOUT + 1) {
+        game_copy = *game;
+        int history_bound = -1;
+        current = root;
+        history[++history_bound] = root;
+
+        // cout << current->result << " " << current->checked << endl;
+
+        // Selection
+        while (current->result == EMPTY && current->checked == board_size) {
+            depth++;
+            // cout << depth << endl;
+            best_ucb_value = INT_MIN;
+            // Select next node according to UCB
+            for (int i = 0; i < current->size; i++) {
+                // cout << current->children[i].actions << " " << current->children[i].viqsits << endl;
+                if (best_ucb_value < current->children[i].value + C * sqrt(log(current->children[i].actions) / current->children[i].visits)) {
+                    best_ucb_value = current->children[i].value + C * sqrt(log(current->children[i].actions) / current->children[i].visits);
+                    next = &current->children[i];
+                }
+            }
+
+            // TODO: Actually make the moves on the board
+            game_copy.board[next->move] = to_move;
+            to_move = (to_move == BLACK) ? WHITE : BLACK;
+            history[++history_bound] = next;
+            current = next;
+        }
+
+        if (current->result == EMPTY) {
+            // Expansion
+            if (current->children == NULL)
+                init_mcts_node(current, game, history[history_bound-1]->player == WHITE ? BLACK : WHITE);
+
+            current->children[current->size++].move = current->checked++;
+
+            // Look for next available move
+            while (current->checked < board_size && game->board[current->checked] != EMPTY)
+                current->checked++;
+
+            // TODO: Play item on game->board[current->size - 1]
+            history[++history_bound] = &current->children[current->size - 1];
+            game_copy.board[current->children[current->size - 1].move] = to_move;
+            to_move = (to_move == BLACK) ? WHITE : BLACK;
+
+            // Simulation
+            result = rollout(game, to_move);
+        } else {
+            // This node is terminal
+            result = current->result;
+        }
+
+        // Backpropagation
+        for (; history_bound >= 0; history_bound--) {
+            history[history_bound]->value *= history[history_bound]->visits;
+            history[history_bound]->value += (result == history[history_bound]->player) ? 1 : -1;
+            history[history_bound]->value /= ++history[history_bound]->visits;
+            if (history_bound == 0)
+                cout << history[history_bound]->value << endl;
+            history[history_bound]->actions++;
+        }
+    }
+
+    // TODO: Free all nodes (needs to be recursive :( )
+
+
+    for (int i = 0; i < root->size; i++ ) {
+        cout << move_to_string(game, root->children[i].move) << " " << root->children[i].value << " " << root->children[i].actions << " " << root->children[i].visits << endl;
+    }
+ 
+    free(root->children);
 
     // Convert to human-readable form
-    string move = move_to_string(game, coord);
+    string move = move_to_string(game, best_move);
     cout << move << endl;
     sety(game, move);
+
+    return;
+}
+
+/**
+ * @brief Plays a random rollout given the current state of the board.
+ * 
+ * @param game The game object.
+ * @return TYPES 
+ */
+TYPES rollout(Game* game, TYPES to_move) {
+    vector<int> moves;
+
+    // Get all available moves
+    for (int i = 0; i < pow(game->board_size, 2); i++) {
+        if (game->board[i] == EMPTY)
+            moves.push_back(i);
+    }
+
+    // Shuffle the moves
+    random_device rd;
+    default_random_engine rng(rd());
+    shuffle(moves.begin(), moves.end(), rng);
+
+    // Play until we reach a decisive conclusion
+    TYPES result;
+    while ((result = check_win(game)) == EMPTY) {
+        game->board[moves.back()] = to_move;
+        moves.pop_back();
+        to_move = (to_move == BLACK) ? WHITE : BLACK;
+    }
+
+    return result;
+}
+
+/**
+ * @brief 
+ * 
+ * @param node 
+ * @param game 
+ * @param color 
+ */
+void init_mcts_node(mcts_node* node, Game* game, TYPES color) {
+    int board_size = pow(game->board_size, 2);
+    node->children = (mcts_node*) malloc(board_size * sizeof(mcts_node));
+
+    for (int i = 0; i < board_size; i++) {
+        node->children[i].visits = 0;
+        node->children[i].checked = 0;
+        node->children[i].size = 0;
+        node->children[i].actions = 0;
+        node->children[i].value = 0.0;
+        node->children[i].result = EMPTY;
+        node->children[i].player = (color == WHITE) ? BLACK : WHITE;
+    }
+
+    // Look for first available open move
+    while (node->checked < board_size && game->board[node->checked] != EMPTY)
+        node->checked++;
 
     return;
 }

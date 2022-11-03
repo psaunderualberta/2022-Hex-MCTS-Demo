@@ -5,6 +5,8 @@
 #include <iostream>
 #include <string>
 #include <cstring>
+#include <random>
+#include <algorithm>
 
 using namespace std;
 
@@ -13,7 +15,7 @@ void init_neighbours(Game* game);
 void show_board(Game* game);
 void swap(Game* game);
 void unset(Game* game, int move);
-bool check_win(Game* game);
+TYPES check_win(Game* game);
 
 void make_move(Game* game);
 void seto(Game* game, string str);

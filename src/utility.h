@@ -1,9 +1,10 @@
 #ifndef __UTILITY_H__
 #define __UTILITY_H__
-#include "utility.h"
 #include <vector>
 #include <string>
 #include <cmath>
+
+const int MAX_BOARD_SIZE = 30;
 
 using namespace std;
 
@@ -20,7 +21,7 @@ struct Game {
     bool swap_occur;
     TYPES own_color;
     TYPES opp_color;
-    TYPES* board = NULL;
+    TYPES board[MAX_BOARD_SIZE * MAX_BOARD_SIZE];
     vector<vector<int>> neighbours;
 };
 
