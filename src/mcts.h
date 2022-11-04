@@ -6,7 +6,7 @@
 #include <iostream>
 
 const int TIMEOUT = 1;
-const int C = 1.414;
+const int C = 2;
 
 struct mcts_node {
     int visits = 0;
@@ -15,7 +15,7 @@ struct mcts_node {
     int actions = 0;
     float value = 0.0;
     int move;
-    mcts_node* children = NULL;
+    vector<mcts_node*> children;
     TYPES result = EMPTY;
     TYPES player;
 };

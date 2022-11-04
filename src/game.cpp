@@ -143,7 +143,7 @@ TYPES check_win(Game* game) {
             while (pos < bfs.size()) {
                 move = bfs[pos];
                 for (auto& next_move : game->neighbours[move]) {
-                    if (game->board[next_move] != EMPTY && !seen[next_move]) {
+                    if (game->board[next_move] == current_color && !seen[next_move]) {
 
                         minPos = min(minPos, next_move);
                         minModPos = min(minModPos, next_move % game->board_size);
@@ -210,14 +210,16 @@ void make_move(Game* game) {
     mcts_node* current;
     mcts_node* next;
     TYPES result;
-    int best_ucb_value;
+    float best_ucb_value;
+    float current_ucb_value;
 
     // Actual MCTS loop
     while (time(nullptr) < start + TIMEOUT + 1) {
-        game_copy = *game;
+        cout << root->actions << endl;
+        game_copy = *game;  // Performs a copy
         int history_bound = -1;
-        current = root;
-        history[++history_bound] = root;
+        depth = -1;
+        history[++history_bound] = current = root;
 
         // cout << current->result << " " << current->checked << endl;
 
@@ -228,10 +230,21 @@ void make_move(Game* game) {
             best_ucb_value = INT_MIN;
             // Select next node according to UCB
             for (int i = 0; i < current->size; i++) {
-                // cout << current->children[i].actions << " " << current->children[i].viqsits << endl;
-                if (best_ucb_value < current->children[i].value + C * sqrt(log(current->children[i].actions) / current->children[i].visits)) {
-                    best_ucb_value = current->children[i].value + C * sqrt(log(current->children[i].actions) / current->children[i].visits);
+                // cout << current->children[i].actions << " " << current->children[i].visits << endl;
+                
+                if (current->player == game->own_color)
+                    current_ucb_value = current->children[i].value + C * sqrt(log(current->actions) / current->children[i].visits);
+                else
+                    current_ucb_value = current->children[i].value - C * sqrt(log(current->actions) / current->children[i].visits);
+
+                // if (depth == 0)
+                //     cout << i << " " << current->actions << " " << current->children[i].visits << " " << current_ucb_value << endl;
+
+                if (best_ucb_value < current_ucb_value) {
+                    best_ucb_value = current_ucb_value;
                     next = &current->children[i];
+                    // if (depth == 0)
+                    //     cout << i << endl;
                 }
             }
 
@@ -244,10 +257,16 @@ void make_move(Game* game) {
 
         if (current->result == EMPTY) {
             // Expansion
-            if (current->children == NULL)
-                init_mcts_node(current, game, history[history_bound-1]->player == WHITE ? BLACK : WHITE);
 
-            current->children[current->size++].move = current->checked++;
+            // TODO: Fix memory bugs in here!
+            cout << "here" << endl;
+            {
+                if (current->children == NULL)
+                    init_mcts_node(current, game, history[history_bound-1]->player == WHITE ? BLACK : WHITE);
+
+                current->children[current->size++].move = current->checked++;
+            }
+            cout << "there" << endl;
 
             // Look for next available move
             while (current->checked < board_size && game->board[current->checked] != EMPTY)
@@ -259,7 +278,8 @@ void make_move(Game* game) {
             to_move = (to_move == BLACK) ? WHITE : BLACK;
 
             // Simulation
-            result = rollout(game, to_move);
+            if ((current->result = check_win(&game_copy)) == EMPTY)
+                result = rollout(&game_copy, to_move);
         } else {
             // This node is terminal
             result = current->result;
@@ -268,10 +288,8 @@ void make_move(Game* game) {
         // Backpropagation
         for (; history_bound >= 0; history_bound--) {
             history[history_bound]->value *= history[history_bound]->visits;
-            history[history_bound]->value += (result == history[history_bound]->player) ? 1 : -1;
+            history[history_bound]->value += (result == history[history_bound]->player) ? 1 : 0;
             history[history_bound]->value /= ++history[history_bound]->visits;
-            if (history_bound == 0)
-                cout << history[history_bound]->value << endl;
             history[history_bound]->actions++;
         }
     }
@@ -280,10 +298,15 @@ void make_move(Game* game) {
 
 
     for (int i = 0; i < root->size; i++ ) {
-        cout << move_to_string(game, root->children[i].move) << " " << root->children[i].value << " " << root->children[i].actions << " " << root->children[i].visits << endl;
+        cout << move_to_string(game, root->children[i].move) << " " << root->children[i].value << " " << root->actions << " " << root->children[i].visits << endl;
     }
  
     free(root->children);
+
+    // int best_value = -1;
+    // for (int i = 0; i < root->size; i++ ){
+    //     if 
+    // }
 
     // Convert to human-readable form
     string move = move_to_string(game, best_move);
