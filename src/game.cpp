@@ -233,9 +233,9 @@ void make_move(Game* game) {
                 // cout << current->children[i].actions << " " << current->children[i].visits << endl;
                 
                 if (current->player == game->own_color)
-                    current_ucb_value = current->children[i].value + C * sqrt(log(current->actions) / current->children[i].visits);
+                    current_ucb_value = current->children[i]->value + C * sqrt(log(current->actions) / current->children[i]->visits);
                 else
-                    current_ucb_value = current->children[i].value - C * sqrt(log(current->actions) / current->children[i].visits);
+                    current_ucb_value = current->children[i]->value - C * sqrt(log(current->actions) / current->children[i]->visits);
 
                 // if (depth == 0)
                 //     cout << i << " " << current->actions << " " << current->children[i].visits << " " << current_ucb_value << endl;
@@ -261,7 +261,7 @@ void make_move(Game* game) {
             // TODO: Fix memory bugs in here!
             cout << "here" << endl;
             {
-                if (current->children == NULL)
+                if (current->children.size() == 0)
                     init_mcts_node(current, game, history[history_bound-1]->player == WHITE ? BLACK : WHITE);
 
                 current->children[current->size++].move = current->checked++;
@@ -301,8 +301,6 @@ void make_move(Game* game) {
         cout << move_to_string(game, root->children[i].move) << " " << root->children[i].value << " " << root->actions << " " << root->children[i].visits << endl;
     }
  
-    free(root->children);
-
     // int best_value = -1;
     // for (int i = 0; i < root->size; i++ ){
     //     if 
@@ -356,16 +354,16 @@ TYPES rollout(Game* game, TYPES to_move) {
  */
 void init_mcts_node(mcts_node* node, Game* game, TYPES color) {
     int board_size = pow(game->board_size, 2);
-    node->children = (mcts_node*) malloc(board_size * sizeof(mcts_node));
+    node->children = new vector<*mcts_node>(board_size);
 
     for (int i = 0; i < board_size; i++) {
-        node->children[i].visits = 0;
-        node->children[i].checked = 0;
-        node->children[i].size = 0;
-        node->children[i].actions = 0;
-        node->children[i].value = 0.0;
-        node->children[i].result = EMPTY;
-        node->children[i].player = (color == WHITE) ? BLACK : WHITE;
+        node->children[i]->visits = 0;
+        node->children[i]->checked = 0;
+        node->children[i]->size = 0;
+        node->children[i]->actions = 0;
+        node->children[i]->value = 0.0;
+        node->children[i]->result = EMPTY;
+        node->children[i]->player = (color == WHITE) ? BLACK : WHITE;
     }
 
     // Look for first available open move
