@@ -16,7 +16,6 @@ target=$(filename)
 
 source=$(directory)/$(filename).cpp \
 		$(directory)/game.cpp \
-		$(directory)/mcts.cpp \
 		$(directory)/utility.cpp
 
 allFiles=Makefile $(source) *.h

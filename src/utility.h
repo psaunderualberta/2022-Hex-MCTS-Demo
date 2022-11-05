@@ -25,6 +25,18 @@ struct Game {
     vector<vector<int>> neighbours;
 };
 
+struct mcts_node {
+    int visits = 0;
+    int checked = 0;
+    int size = 0;
+    int actions = 0;
+    float value = 0.0;
+    int move;
+    vector<mcts_node*> children;
+    TYPES result = EMPTY;
+    TYPES player;
+};
+
 vector<string> tokenize(string s, string delimiter);
 
 #endif
