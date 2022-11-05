@@ -16,6 +16,7 @@ target=$(filename)
 
 source=$(directory)/$(filename).cpp \
 		$(directory)/game.cpp \
+		$(directory)/union_find.cpp \
 		$(directory)/utility.cpp
 
 allFiles=Makefile $(source) *.h
