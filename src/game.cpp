@@ -165,11 +165,12 @@ TYPES check_win(Game* game) {
         }
     }
 
-    for (int i = 0; i < pow(game->board_size, 2); i++)
+    for (int i = 0; i < pow(game->board_size, 2); i++) {
         if (set1.test(i) && set2.test(i)) {
             // cout << (game->own_color == BLACK ? 1 : -1) << endl;
             return BLACK;
         }
+    }
 
     // cout << "there3" << endl;
     // cout << 0 << endl;
