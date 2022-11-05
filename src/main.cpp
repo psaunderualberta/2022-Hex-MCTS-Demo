@@ -11,7 +11,7 @@ int main(int argc, char** argv) {
         cout << "Error: Must put in color!" << endl;
         exit(1);
     }
-    
+
     string color = argv[1];
     if (color =="white") {
         game->own_color = WHITE;

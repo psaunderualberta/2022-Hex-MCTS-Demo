@@ -3,6 +3,10 @@
 #include <vector>
 #include <string>
 #include <cmath>
+#include <iostream>
+#include <string>
+#include <cstring>
+#include <bitset>
 
 const int MAX_BOARD_SIZE = 30;
 
@@ -15,13 +19,20 @@ enum TYPES {
     EMPTY
 };
 
+struct union_find_set {
+    TYPES cell;
+    union_find_set* parent;
+    int index;
+    int rank;
+};
+
 struct Game {
     int board_size;
     int move_cnt;
     bool swap_occur;
     TYPES own_color;
     TYPES opp_color;
-    TYPES board[MAX_BOARD_SIZE * MAX_BOARD_SIZE];
+    union_find_set board[MAX_BOARD_SIZE * MAX_BOARD_SIZE];
     vector<vector<int>> neighbours;
 };
 

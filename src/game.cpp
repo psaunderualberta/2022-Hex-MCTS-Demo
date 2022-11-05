@@ -17,7 +17,10 @@ void init_game(Game* game, int board_size) {
     }
 
     for (int i = 0; i < game->board_size * game->board_size; i++) {
-        game->board[i] = EMPTY;
+        game->board[i].cell = EMPTY;
+        game->board[i].index = i;
+        game->board[i].rank = 1;
+        game->board[i].parent = &game->board[i];
     }
 
     // Initialize neighbours
@@ -72,9 +75,10 @@ void show_board(Game* game) {
             for (int _ = 0; _ < space_cnt; _++)
                 cout << " ";
         }
-        if (game->board[i] == WHITE)
+
+        if (game->board[i].cell == WHITE)
             cout << "W ";
-        else if (game->board[i] == BLACK)
+        else if (game->board[i].cell == BLACK)
             cout << "B ";
         else
             cout << ". ";
@@ -109,7 +113,7 @@ void swap(Game* game) {
  */
 void unset(Game* game, string move) {
     int coord = str_to_move(game, move);
-    game->board[coord] = EMPTY;
+    game->board[coord].cell = EMPTY;
     return;
 }
 
@@ -122,62 +126,53 @@ void unset(Game* game, string move) {
  * @return false 
  */
 TYPES check_win(Game* game) {
-    vector<bool> seen(game->board_size * game->board_size, false);
-    string coord;
-    TYPES current_color;
-    int minPos, maxPos, minModPos, maxModPos;
-    vector<int>::size_type pos;
-    vector<int> bfs;
+    bitset<(int) pow(MAX_BOARD_SIZE, 2)> set1;
+    bitset<(int) pow(MAX_BOARD_SIZE, 2)> set2;
+    union_find_set* root;
 
-    for (int move = 0; move < game->board_size * game->board_size; move++) {
-        // TODO: Establish which direction to look
-        if (game->board[move] != EMPTY && !seen[move]) {
-            current_color = game->board[move];
-            bfs.clear();
-            bfs.push_back(move);
-            seen[move] = true;
-            pos = 0;
- 
-            // Get the best locations of the current path
-            minPos = move, maxPos = move;
-            minModPos = move % game->board_size, maxModPos = move % game->board_size;
+    for (int i = 0; i < game->board_size; i++) {
+        if (game->board[i * game->board_size].cell == WHITE) {
+            root = find(&game->board[i * game->board_size]);
+            set1.set(root->index);
+        }
 
-            while (pos < bfs.size()) {
-                move = bfs[pos];
-                for (auto& next_move : game->neighbours[move]) {
-                    if (game->board[next_move] == current_color && !seen[next_move]) {
-
-                        minPos = min(minPos, next_move);
-                        minModPos = min(minModPos, next_move % game->board_size);
-                        maxPos = max(maxPos, next_move);
-                        maxModPos = max(maxModPos, next_move % game->board_size);
-
-                        // Win conditions
-                        // White touches left & right sides
-                        // Black touches top & bottom
-                        if (current_color == WHITE && minModPos == 0 && maxModPos == game->board_size - 1) {
-                            // cout << (game->own_color == WHITE ? 1 : -1) << endl;
-                            // cout << "there1" << endl;
-                            return WHITE;
-                        } else if (current_color == BLACK && minPos < game->board_size && game->board_size * (game->board_size - 1) <= maxPos) {
-                            // cout << (game->own_color == BLACK ? 1 : -1) << endl;
-                            // cout << "there2" << endl;
-                            return BLACK;
-                        }
-
-                        bfs.push_back(next_move);
-                        seen[next_move] = true;
-                    }
-                }
-
-                pos++;
-            }
+        if (game->board[(i + 1) * game->board_size - 1].cell == WHITE) {
+            root = find(&game->board[(i + 1) * game->board_size - 1]);
+            set2.set(root->index);
         }
     }
 
-    // No winner yet
-    // cout << "0" << endl;
+    for (int i = 0; i < pow(game->board_size, 2); i++) {
+        if (set1.test(i) && set2.test(i)) {
+            // cout << (game->own_color == WHITE ? 1 : -1) << endl;
+            return WHITE;
+        }
+
+        set1.reset(i);
+        set2.reset(i);
+    }
+
+    // Time to test BLACK
+    for (int i = 0; i < game->board_size; i++) {
+        if (game->board[i].cell == BLACK) {
+            root = find(&game->board[i]);
+            set1.set(root->index);
+        }
+
+        if (game->board[(int) pow(game->board_size, 2) - game->board_size + i].cell == BLACK) {
+            root = find(&game->board[(int) pow(game->board_size, 2) - game->board_size + i]);
+            set2.set(root->index);
+        }
+    }
+
+    for (int i = 0; i < pow(game->board_size, 2); i++)
+        if (set1.test(i) && set2.test(i)) {
+            // cout << (game->own_color == BLACK ? 1 : -1) << endl;
+            return BLACK;
+        }
+
     // cout << "there3" << endl;
+    // cout << 0 << endl;
     return EMPTY;
 }
 
@@ -217,10 +212,18 @@ void make_move(Game* game) {
     TYPES result;
     float best_ucb_value;
     float current_ucb_value;
+    int i = 0;
 
     // Actual MCTS loop
     while (time(nullptr) < start + TIMEOUT + 1) {
+        i++;
         game_copy = *game;  // Performs a copy
+
+        // Make the parents point to locations in the copied array.
+        for (int i = 0; i < board_size; i++) {
+            game_copy.board[i].parent = &game_copy.board[i];
+        }
+
         int history_bound = -1;
         depth = -1;
         history[++history_bound] = current = root;
@@ -254,7 +257,7 @@ void make_move(Game* game) {
             current->children[current->size++]->move = current->checked++;
 
             // Look for next available move
-            while (current->checked < board_size && game_copy.board[current->checked] != EMPTY)
+            while (current->checked < board_size && game_copy.board[current->checked].cell != EMPTY)
                 current->checked++;
 
             history[++history_bound] = current->children[current->size - 1];
@@ -308,7 +311,7 @@ TYPES rollout(Game* game, TYPES to_move) {
 
     // Get all available moves
     for (int i = 0; i < pow(game->board_size, 2); i++) {
-        if (game->board[i] == EMPTY)
+        if (game->board[i].cell == EMPTY)
             moves.push_back(i);
     }
 
@@ -350,7 +353,7 @@ void init_mcts_node(mcts_node* node, Game* game, TYPES color) {
     }
 
     // Look for first available open move
-    while (node->checked < board_size && game->board[node->checked] != EMPTY)
+    while (node->checked < board_size && game->board[node->checked].cell != EMPTY)
         node->checked++;
 
     return;
@@ -384,9 +387,16 @@ void seto(Game* game, string str) {
 
     if (coord < 0)
         swap(game);
-    else if (game->board[coord] == EMPTY) {
-        game->board[coord] = game->opp_color;
+    else if (game->board[coord].cell == EMPTY) {
+        game->board[coord].cell = game->opp_color;
         game->move_cnt++;
+
+        for (auto& neighbour : game->neighbours[coord]) {
+            if (game->board[neighbour].cell == game->opp_color) {
+                union_sets(&game->board[neighbour], &game->board[coord]);
+            }
+        }
+
     }
 
     return;
@@ -403,9 +413,14 @@ void sety(Game* game, string str) {
 
     if (coord < 0)
         swap(game);
-    else if (game->board[coord] == EMPTY) {
-        game->board[coord] = game->own_color;
+    else if (game->board[coord].cell == EMPTY) {
+        game->board[coord].cell = game->own_color;
         game->move_cnt++;
+
+        for (auto& neighbour : game->neighbours[coord]) {
+            if (game->board[neighbour].cell == game->own_color)
+                union_sets(&game->board[neighbour], &game->board[coord]);
+        }
     }
 
     return;

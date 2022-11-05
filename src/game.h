@@ -1,9 +1,7 @@
 #ifndef __GAME_H__
 #define __GAME_H__
 #include "utility.h"
-#include <iostream>
-#include <string>
-#include <cstring>
+#include "union_find.h"
 #include <random>
 #include <algorithm>
 #include <climits>
