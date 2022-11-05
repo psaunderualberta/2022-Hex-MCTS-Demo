@@ -18,6 +18,7 @@ void unset(Game* game, int move);
 TYPES check_win(Game* game);
 
 void make_move(Game* game);
+TYPES play_move(Game* game, int move, TYPES to_move);
 void seto(Game* game, string str);
 void sety(Game* game, string str);
 

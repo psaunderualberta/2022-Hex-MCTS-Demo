@@ -127,15 +127,17 @@ TYPES check_win(Game* game) {
     TYPES current_color;
     int minPos, maxPos, minModPos, maxModPos;
     vector<int>::size_type pos;
+    vector<int> bfs;
 
     for (int move = 0; move < game->board_size * game->board_size; move++) {
         // TODO: Establish which direction to look
         if (game->board[move] != EMPTY && !seen[move]) {
             current_color = game->board[move];
-            vector<int> bfs = { move };
+            bfs.clear();
+            bfs.push_back(move);
             seen[move] = true;
             pos = 0;
-
+ 
             // Get the best locations of the current path
             minPos = move, maxPos = move;
             minModPos = move % game->board_size, maxModPos = move % game->board_size;
@@ -155,9 +157,11 @@ TYPES check_win(Game* game) {
                         // Black touches top & bottom
                         if (current_color == WHITE && minModPos == 0 && maxModPos == game->board_size - 1) {
                             // cout << (game->own_color == WHITE ? 1 : -1) << endl;
+                            // cout << "there1" << endl;
                             return WHITE;
                         } else if (current_color == BLACK && minPos < game->board_size && game->board_size * (game->board_size - 1) <= maxPos) {
                             // cout << (game->own_color == BLACK ? 1 : -1) << endl;
+                            // cout << "there2" << endl;
                             return BLACK;
                         }
 
@@ -173,6 +177,7 @@ TYPES check_win(Game* game) {
 
     // No winner yet
     // cout << "0" << endl;
+    // cout << "there3" << endl;
     return EMPTY;
 }
 
@@ -185,6 +190,7 @@ void make_move(Game* game) {
     // Perform the MCTS search
     int best_move = 0;
     int depth = 0;
+    int best_depth = 0;
     int board_size = pow(game->board_size, 2);
     TYPES to_move = game->own_color;
 
@@ -200,7 +206,6 @@ void make_move(Game* game) {
     root->value = 0.0;
     root->result = EMPTY;
     root->player = game->own_color;
-    root->children = NULL;
 
     init_mcts_node(root, game, game->own_color);
 
@@ -215,102 +220,78 @@ void make_move(Game* game) {
 
     // Actual MCTS loop
     while (time(nullptr) < start + TIMEOUT + 1) {
-        cout << root->actions << endl;
         game_copy = *game;  // Performs a copy
         int history_bound = -1;
         depth = -1;
         history[++history_bound] = current = root;
 
-        // cout << current->result << " " << current->checked << endl;
-
         // Selection
         while (current->result == EMPTY && current->checked == board_size) {
             depth++;
-            // cout << depth << endl;
             best_ucb_value = INT_MIN;
-            // Select next node according to UCB
-            for (int i = 0; i < current->size; i++) {
-                // cout << current->children[i].actions << " " << current->children[i].visits << endl;
-                
-                if (current->player == game->own_color)
-                    current_ucb_value = current->children[i].value + C * sqrt(log(current->actions) / current->children[i].visits);
-                else
-                    current_ucb_value = current->children[i].value - C * sqrt(log(current->actions) / current->children[i].visits);
 
-                // if (depth == 0)
-                //     cout << i << " " << current->actions << " " << current->children[i].visits << " " << current_ucb_value << endl;
+            // Select next node according to UCB
+            for (int i = 0; i < current->size; i++) {                
+                current_ucb_value = current->children[i]->value + C * sqrt(log(current->actions) / current->children[i]->visits);
 
                 if (best_ucb_value < current_ucb_value) {
                     best_ucb_value = current_ucb_value;
-                    next = &current->children[i];
-                    // if (depth == 0)
-                    //     cout << i << endl;
+                    next = current->children[i];
                 }
             }
 
             // TODO: Actually make the moves on the board
-            game_copy.board[next->move] = to_move;
-            to_move = (to_move == BLACK) ? WHITE : BLACK;
+            to_move = play_move(&game_copy, next->move, to_move);
             history[++history_bound] = next;
-            current = next;
+            current = next; 
         }
+ 
+        // Expansion
+        if (current->checked != board_size) {
+            if (current->children.size() == 0)
+                init_mcts_node(current, &game_copy, history[history_bound-1]->player == WHITE ? BLACK : WHITE);
 
-        if (current->result == EMPTY) {
-            // Expansion
-
-            // TODO: Fix memory bugs in here!
-            cout << "here" << endl;
-            {
-                if (current->children == NULL)
-                    init_mcts_node(current, game, history[history_bound-1]->player == WHITE ? BLACK : WHITE);
-
-                current->children[current->size++].move = current->checked++;
-            }
-            cout << "there" << endl;
+            current->children[current->size++]->move = current->checked++;
 
             // Look for next available move
-            while (current->checked < board_size && game->board[current->checked] != EMPTY)
+            while (current->checked < board_size && game_copy.board[current->checked] != EMPTY)
                 current->checked++;
 
-            // TODO: Play item on game->board[current->size - 1]
-            history[++history_bound] = &current->children[current->size - 1];
-            game_copy.board[current->children[current->size - 1].move] = to_move;
-            to_move = (to_move == BLACK) ? WHITE : BLACK;
+            history[++history_bound] = current->children[current->size - 1];
+            to_move = play_move(&game_copy, current->children[current->size - 1]->move, to_move);
+        }
 
-            // Simulation
-            if ((current->result = check_win(&game_copy)) == EMPTY)
+        // Simulation
+        if (current->result == EMPTY) {
+            current->result = check_win(&game_copy);
+            if (current->result == EMPTY) {
                 result = rollout(&game_copy, to_move);
+            } else {
+                result = current->result;
+            }
         } else {
             // This node is terminal
             result = current->result;
-        }
+        } 
 
         // Backpropagation
         for (; history_bound >= 0; history_bound--) {
             history[history_bound]->value *= history[history_bound]->visits;
-            history[history_bound]->value += (result == history[history_bound]->player) ? 1 : 0;
+            history[history_bound]->value += (result == history[history_bound]->player);
             history[history_bound]->value /= ++history[history_bound]->visits;
             history[history_bound]->actions++;
         }
+
+        best_depth = max(depth, best_depth);
     }
-
-    // TODO: Free all nodes (needs to be recursive :( )
-
 
     for (int i = 0; i < root->size; i++ ) {
-        cout << move_to_string(game, root->children[i].move) << " " << root->children[i].value << " " << root->actions << " " << root->children[i].visits << endl;
+        cout << move_to_string(game, root->children[i]->move) << " " << root->children[i]->value << " " << root->actions << " " << root->children[i]->visits << endl;
     }
- 
-    free(root->children);
-
-    // int best_value = -1;
-    // for (int i = 0; i < root->size; i++ ){
-    //     if 
-    // }
 
     // Convert to human-readable form
     string move = move_to_string(game, best_move);
-    cout << move << endl;
+    cout << move << " " << best_depth << endl;
     sety(game, move);
 
     return;
@@ -339,9 +320,8 @@ TYPES rollout(Game* game, TYPES to_move) {
     // Play until we reach a decisive conclusion
     TYPES result;
     while ((result = check_win(game)) == EMPTY) {
-        game->board[moves.back()] = to_move;
+        to_move = play_move(game, moves.back(), to_move);
         moves.pop_back();
-        to_move = (to_move == BLACK) ? WHITE : BLACK;
     }
 
     return result;
@@ -356,16 +336,17 @@ TYPES rollout(Game* game, TYPES to_move) {
  */
 void init_mcts_node(mcts_node* node, Game* game, TYPES color) {
     int board_size = pow(game->board_size, 2);
-    node->children = (mcts_node*) malloc(board_size * sizeof(mcts_node));
-
+    node->children = vector<mcts_node*>(board_size);
+ 
     for (int i = 0; i < board_size; i++) {
-        node->children[i].visits = 0;
-        node->children[i].checked = 0;
-        node->children[i].size = 0;
-        node->children[i].actions = 0;
-        node->children[i].value = 0.0;
-        node->children[i].result = EMPTY;
-        node->children[i].player = (color == WHITE) ? BLACK : WHITE;
+        node->children[i] = new struct mcts_node;
+        node->children[i]->visits = 0;
+        node->children[i]->checked = 0;
+        node->children[i]->size = 0;
+        node->children[i]->actions = 0;
+        node->children[i]->value = 0.0;
+        node->children[i]->result = EMPTY;
+        node->children[i]->player = (color == WHITE) ? BLACK : WHITE;
     }
 
     // Look for first available open move
@@ -373,6 +354,23 @@ void init_mcts_node(mcts_node* node, Game* game, TYPES color) {
         node->checked++;
 
     return;
+}
+
+/**
+ * @brief 
+ * 
+ * @param game 
+ * @param move 
+ * @param to_move 
+ * @return TYPES 
+ */
+TYPES play_move(Game* game, int move, TYPES to_move) {
+    if (to_move == game->own_color)
+        sety(game, move_to_string(game, move));
+    else
+        seto(game, move_to_string(game, move));
+    
+    return (to_move == game->own_color) ? game->opp_color : game->own_color;
 }
 
 /**
