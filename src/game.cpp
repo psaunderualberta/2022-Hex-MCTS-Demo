@@ -208,6 +208,7 @@ void make_move(Game* game) {
     root->player = game->own_color;
 
     init_mcts_node(root, game, game->own_color);
+    root->result = check_win(&game_copy);
 
     time_t start = time(nullptr);
     vector<mcts_node*> history(board_size + 1);
@@ -231,8 +232,11 @@ void make_move(Game* game) {
             best_ucb_value = INT_MIN;
 
             // Select next node according to UCB
-            for (int i = 0; i < current->size; i++) {                
-                current_ucb_value = current->children[i]->value + C * sqrt(log(current->actions) / current->children[i]->visits);
+            for (int i = 0; i < current->size; i++) {
+                if (depth % 2) // Minimizing player
+                    current_ucb_value = current->children[i]->value + C * sqrt(log(current->actions) / current->children[i]->visits);
+                else
+                    current_ucb_value = 1 - current->children[i]->value + C * sqrt(log(current->actions) / current->children[i]->visits);
 
                 if (best_ucb_value < current_ucb_value) {
                     best_ucb_value = current_ucb_value;
@@ -246,8 +250,10 @@ void make_move(Game* game) {
             current = next; 
         }
  
-        // Expansion
-        if (current->checked != board_size) {
+        if (current->result != EMPTY) {
+            result = current->result;
+        } else {
+            // Expansion
             if (current->children.size() == 0)
                 init_mcts_node(current, &game_copy, history[history_bound-1]->player == WHITE ? BLACK : WHITE);
 
@@ -259,25 +265,21 @@ void make_move(Game* game) {
 
             history[++history_bound] = current->children[current->size - 1];
             to_move = play_move(&game_copy, current->children[current->size - 1]->move, to_move);
-        }
+            current = current->children[current->size - 1];
 
-        // Simulation
-        if (current->result == EMPTY) {
+            // Simulation
             current->result = check_win(&game_copy);
             if (current->result == EMPTY) {
                 result = rollout(&game_copy, to_move);
             } else {
                 result = current->result;
             }
-        } else {
-            // This node is terminal
-            result = current->result;
-        } 
+        }
 
         // Backpropagation
         for (; history_bound >= 0; history_bound--) {
             history[history_bound]->value *= history[history_bound]->visits;
-            history[history_bound]->value += (result == history[history_bound]->player);
+            history[history_bound]->value += (result == game->own_color);
             history[history_bound]->value /= ++history[history_bound]->visits;
             history[history_bound]->actions++;
         }
