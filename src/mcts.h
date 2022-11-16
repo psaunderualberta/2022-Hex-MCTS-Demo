@@ -5,7 +5,7 @@
 #include <climits>
 #include <iostream>
 
-const int TIMEOUT = 10;
+const int TIMEOUT = 30;
 const int C = 2;
 
 struct mcts_node {
@@ -15,9 +15,12 @@ struct mcts_node {
     int actions = 0;
     float value = 0.0;
     int move;
-    vector<mcts_node*> children;
     TYPES result = EMPTY;
     TYPES player;
+    vector<mcts_node*> children;
+
+    // Initializer
+    mcts_node(TYPES color) : visits(0), checked(0), size(0), actions(0), value(0.0), move(-1), result(EMPTY), player(color == WHITE ? BLACK : WHITE) {};
 };
 
 int MCTS(Game* game);

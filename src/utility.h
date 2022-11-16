@@ -18,6 +18,7 @@ enum TYPES {
 struct Game {
     int board_size;
     int move_cnt;
+    int last_move;
     bool swap_occur;
     TYPES own_color;
     TYPES opp_color;

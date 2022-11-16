@@ -193,21 +193,10 @@ void make_move(Game* game) {
     int best_depth = 0;
     int board_size = pow(game->board_size, 2);
     TYPES to_move = game->own_color;
-
     Game game_copy = *game;
+
     // Initialize the root node of the search tree.
-    mcts_node* root = new struct mcts_node;
-    root->player = game->own_color;
-
-    root->visits = 0;
-    root->checked = 0;
-    root->size = 0;
-    root->actions = 0;
-    root->value = 0.0;
-    root->result = EMPTY;
-    root->player = game->own_color;
-
-    init_mcts_node(root, game, game->own_color);
+    mcts_node* root = new mcts_node(game->own_color);
     root->result = check_win(&game_copy);
 
     time_t start = time(nullptr);
@@ -225,18 +214,19 @@ void make_move(Game* game) {
         int history_bound = -1;
         depth = -1;
         history[++history_bound] = current = root;
-
-        // Selection
+        to_move = game->own_color;
+ 
+        // Selection Step
         while (current->result == EMPTY && current->checked == board_size) {
             depth++;
             best_ucb_value = INT_MIN;
 
             // Select next node according to UCB
             for (int i = 0; i < current->size; i++) {
-                if (depth % 2) // Minimizing player
-                    current_ucb_value = current->children[i]->value + C * sqrt(log(current->actions) / current->children[i]->visits);
-                else
+                if (depth % 2)  // Minimizing player
                     current_ucb_value = 1 - current->children[i]->value + C * sqrt(log(current->actions) / current->children[i]->visits);
+                else  // Maximizing player
+                    current_ucb_value = current->children[i]->value + C * sqrt(log(current->actions) / current->children[i]->visits);
 
                 if (best_ucb_value < current_ucb_value) {
                     best_ucb_value = current_ucb_value;
@@ -244,7 +234,7 @@ void make_move(Game* game) {
                 }
             }
 
-            // TODO: Actually make the moves on the board
+            // Actually make the moves on the board
             to_move = play_move(&game_copy, next->move, to_move);
             history[++history_bound] = next;
             current = next; 
@@ -253,21 +243,22 @@ void make_move(Game* game) {
         if (current->result != EMPTY) {
             result = current->result;
         } else {
-            // Expansion
+            // Expansion Step
             if (current->children.size() == 0)
-                init_mcts_node(current, &game_copy, history[history_bound-1]->player == WHITE ? BLACK : WHITE);
+                init_mcts_node(current, &game_copy, to_move);
 
-            current->children[current->size++]->move = current->checked++;
+            next = current->children[current->size++];
+            next->move = current->checked++;
 
             // Look for next available move
             while (current->checked < board_size && game_copy.board[current->checked] != EMPTY)
                 current->checked++;
 
-            history[++history_bound] = current->children[current->size - 1];
-            to_move = play_move(&game_copy, current->children[current->size - 1]->move, to_move);
-            current = current->children[current->size - 1];
+            history[++history_bound] = next;
+            to_move = play_move(&game_copy, next->move, to_move);
+            current = next;
 
-            // Simulation
+            // Simulation Step
             current->result = check_win(&game_copy);
             if (current->result == EMPTY) {
                 result = rollout(&game_copy, to_move);
@@ -276,7 +267,7 @@ void make_move(Game* game) {
             }
         }
 
-        // Backpropagation
+        // Backpropagation Step
         for (; history_bound >= 0; history_bound--) {
             history[history_bound]->value *= history[history_bound]->visits;
             history[history_bound]->value += (result == game->own_color);
@@ -321,10 +312,10 @@ TYPES rollout(Game* game, TYPES to_move) {
 
     // Play until we reach a decisive conclusion
     TYPES result;
-    while ((result = check_win(game)) == EMPTY) {
+    do {
         to_move = play_move(game, moves.back(), to_move);
         moves.pop_back();
-    }
+    } while ((result = check_win(game)) == EMPTY);
 
     return result;
 }
@@ -341,14 +332,7 @@ void init_mcts_node(mcts_node* node, Game* game, TYPES color) {
     node->children = vector<mcts_node*>(board_size);
  
     for (int i = 0; i < board_size; i++) {
-        node->children[i] = new struct mcts_node;
-        node->children[i]->visits = 0;
-        node->children[i]->checked = 0;
-        node->children[i]->size = 0;
-        node->children[i]->actions = 0;
-        node->children[i]->value = 0.0;
-        node->children[i]->result = EMPTY;
-        node->children[i]->player = (color == WHITE) ? BLACK : WHITE;
+        node->children[i] = new mcts_node(color);
     }
 
     // Look for first available open move
