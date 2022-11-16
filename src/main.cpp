@@ -33,11 +33,11 @@ int main(int argc, char** argv) {
         else if (cmd[0] == "show_board")
             show_board(game);
         else if (cmd[0] == "seto")
-            seto(game, cmd[1]);
+            play_move(game, str_to_move(game, cmd[1]), game->opp_color);
         else if (cmd[0] == "sety")
-            sety(game, cmd[1]);
+            play_move(game, str_to_move(game, cmd[1]), game->own_color);
         else if (cmd[0] == "check_win")
-            check_win(game);
+            check_win(game, true);
         else if (cmd[0] == "make_move")
             make_move(game);
         else if (cmd[0] != "quit")

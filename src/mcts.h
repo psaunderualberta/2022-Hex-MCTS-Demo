@@ -5,7 +5,7 @@
 #include <climits>
 #include <iostream>
 
-const int TIMEOUT = 30;
+const int TIMEOUT = 85;
 const int C = 2;
 
 struct mcts_node {

@@ -1,4 +1,5 @@
 #include "game.h"
+// https://www.cs.cornell.edu/~adith/docs/y_hex.pdf
 
 /**
  * @brief 
@@ -20,6 +21,7 @@ void init_game(Game* game, int board_size) {
         game->board[i] = EMPTY;
     }
 
+    game->last_move = -1;
     // Initialize neighbours
     init_neighbours(game);
 
@@ -121,7 +123,7 @@ void unset(Game* game, string move) {
  * @return true 
  * @return false 
  */
-TYPES check_win(Game* game) {
+TYPES check_win(Game* game, bool check_all_and_print) {
     vector<bool> seen(game->board_size * game->board_size, false);
     string coord;
     TYPES current_color;
@@ -129,7 +131,23 @@ TYPES check_win(Game* game) {
     vector<int>::size_type pos;
     vector<int> bfs;
 
-    for (int move = 0; move < game->board_size * game->board_size; move++) {
+    // Early termination if the game cannot be over
+    if (game->move_cnt < game->board_size) {
+        if (check_all_and_print)
+            cout << "0" << endl;
+
+        return EMPTY;
+    }
+
+    // If we are searching, then we just need to look
+    // at the last move that was played.
+    int low, high;
+    if (check_all_and_print || game->last_move < 0)
+        low = 0, high = pow(game->board_size, 2);
+    else
+        low = game->last_move, high = game->last_move + 1;
+
+    for (int move = low; move < high; move++) {
         // TODO: Establish which direction to look
         if (game->board[move] != EMPTY && !seen[move]) {
             current_color = game->board[move];
@@ -156,12 +174,12 @@ TYPES check_win(Game* game) {
                         // White touches left & right sides
                         // Black touches top & bottom
                         if (current_color == WHITE && minModPos == 0 && maxModPos == game->board_size - 1) {
-                            // cout << (game->own_color == WHITE ? 1 : -1) << endl;
-                            // cout << "there1" << endl;
+                            if (check_all_and_print)
+                                cout << (game->own_color == WHITE ? 1 : -1) << endl;
                             return WHITE;
                         } else if (current_color == BLACK && minPos < game->board_size && game->board_size * (game->board_size - 1) <= maxPos) {
-                            // cout << (game->own_color == BLACK ? 1 : -1) << endl;
-                            // cout << "there2" << endl;
+                            if (check_all_and_print)
+                                cout << (game->own_color == BLACK ? 1 : -1) << endl;
                             return BLACK;
                         }
 
@@ -176,8 +194,9 @@ TYPES check_win(Game* game) {
     }
 
     // No winner yet
-    // cout << "0" << endl;
-    // cout << "there3" << endl;
+    if (check_all_and_print)
+        cout << "0" << endl;
+
     return EMPTY;
 }
 
@@ -197,7 +216,7 @@ void make_move(Game* game) {
 
     // Initialize the root node of the search tree.
     mcts_node* root = new mcts_node(game->own_color);
-    root->result = check_win(&game_copy);
+    root->result = check_win(&game_copy, false);
 
     time_t start = time(nullptr);
     vector<mcts_node*> history(board_size + 1);
@@ -247,23 +266,24 @@ void make_move(Game* game) {
             if (current->children.size() == 0)
                 init_mcts_node(current, &game_copy, to_move);
 
+            // Play new move
             next = current->children[current->size++];
             next->move = current->checked++;
+            to_move = play_move(&game_copy, next->move, to_move);
+
+            // Store new move
+            history[++history_bound] = next;
 
             // Look for next available move
-            while (current->checked < board_size && game_copy.board[current->checked] != EMPTY)
-                current->checked++;
-
-            history[++history_bound] = next;
-            to_move = play_move(&game_copy, next->move, to_move);
-            current = next;
+            while (next->checked < board_size && game_copy.board[next->checked] != EMPTY)
+                next->checked++;
 
             // Simulation Step
-            current->result = check_win(&game_copy);
-            if (current->result == EMPTY) {
+            next->result = check_win(&game_copy, false);
+            if (next->result == EMPTY) {
                 result = rollout(&game_copy, to_move);
             } else {
-                result = current->result;
+                result = next->result;
             }
         }
 
@@ -315,7 +335,7 @@ TYPES rollout(Game* game, TYPES to_move) {
     do {
         to_move = play_move(game, moves.back(), to_move);
         moves.pop_back();
-    } while ((result = check_win(game)) == EMPTY);
+    } while ((result = check_win(game, false)) == EMPTY);
 
     return result;
 }
@@ -356,6 +376,8 @@ TYPES play_move(Game* game, int move, TYPES to_move) {
     else
         seto(game, move_to_string(game, move));
     
+    game->last_move = move;
+    game->move_cnt++;
     return (to_move == game->own_color) ? game->opp_color : game->own_color;
 }
 

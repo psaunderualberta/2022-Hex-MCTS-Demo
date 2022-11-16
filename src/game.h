@@ -15,7 +15,7 @@ void init_neighbours(Game* game);
 void show_board(Game* game);
 void swap(Game* game);
 void unset(Game* game, int move);
-TYPES check_win(Game* game);
+TYPES check_win(Game* game, bool check_all_and_print);
 
 void make_move(Game* game);
 TYPES play_move(Game* game, int move, TYPES to_move);
