@@ -26,5 +26,8 @@ compiler=g++ -Wall -Wextra -Werror -pedantic -g
 HexBot: $(source)
 	$(compiler) $(source) -o $@
 
+fast: $(source)
+	$(compiler) -O3 -Ofast $(source) -o ./HexBot
+
 # Nothing to be done for clean
 clean:

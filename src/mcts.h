@@ -24,7 +24,7 @@ struct mcts_node {
 };
 
 int MCTS(Game* game);
-void init_mcts_node(mcts_node* node, Game* game, TYPES color);
+void init_mcts_node(mcts_node* node, Game* game);
 TYPES rollout(Game* game, TYPES to_move);
 
 #endif

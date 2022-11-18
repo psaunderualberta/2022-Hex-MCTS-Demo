@@ -19,8 +19,8 @@ TYPES check_win(Game* game, bool check_all_and_print);
 
 void make_move(Game* game);
 TYPES play_move(Game* game, int move, TYPES to_move);
-void seto(Game* game, string str);
-void sety(Game* game, string str);
+void seto(Game* game, int coord);
+void sety(Game* game, int coord);
 
 int str_to_move(Game* game, string str);
 string move_to_string(Game* game, int move);

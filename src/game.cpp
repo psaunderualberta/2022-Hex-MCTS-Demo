@@ -124,13 +124,6 @@ void unset(Game* game, string move) {
  * @return false 
  */
 TYPES check_win(Game* game, bool check_all_and_print) {
-    vector<bool> seen(game->board_size * game->board_size, false);
-    string coord;
-    TYPES current_color;
-    int minPos, maxPos, minModPos, maxModPos;
-    vector<int>::size_type pos;
-    vector<int> bfs;
-
     // Early termination if the game cannot be over
     if (game->move_cnt < game->board_size) {
         if (check_all_and_print)
@@ -138,6 +131,13 @@ TYPES check_win(Game* game, bool check_all_and_print) {
 
         return EMPTY;
     }
+
+    vector<bool> seen(game->board_size * game->board_size, false);
+    vector<int>::size_type pos;
+    vector<int> bfs;
+    string coord;
+    TYPES current_color;
+    int minPos, maxPos, minModPos, maxModPos;
 
     // If we are searching, then we just need to look
     // at the last move that was played.
@@ -154,13 +154,12 @@ TYPES check_win(Game* game, bool check_all_and_print) {
             bfs.clear();
             bfs.push_back(move);
             seen[move] = true;
-            pos = 0;
  
             // Get the best locations of the current path
             minPos = move, maxPos = move;
             minModPos = move % game->board_size, maxModPos = move % game->board_size;
 
-            while (pos < bfs.size()) {
+            for (pos = 0; pos < bfs.size(); pos++) {
                 move = bfs[pos];
                 for (auto& next_move : game->neighbours[move]) {
                     if (game->board[next_move] == current_color && !seen[next_move]) {
@@ -187,10 +186,8 @@ TYPES check_win(Game* game, bool check_all_and_print) {
                         seen[next_move] = true;
                     }
                 }
-
-                pos++;
             }
-        }
+        } 
     }
 
     // No winner yet
@@ -239,7 +236,8 @@ void make_move(Game* game) {
         while (current->result == EMPTY && current->checked == board_size) {
             depth++;
             best_ucb_value = INT_MIN;
-
+            next = current->children[0];
+ 
             // Select next node according to UCB
             for (int i = 0; i < current->size; i++) {
                 if (depth % 2)  // Minimizing player
@@ -264,17 +262,19 @@ void make_move(Game* game) {
         } else {
             // Expansion Step
             if (current->children.size() == 0)
-                init_mcts_node(current, &game_copy, to_move);
+                init_mcts_node(current, &game_copy);
+
+            // Make space for new move
+            current->children.push_back(new mcts_node(to_move));
 
             // Play new move
             next = current->children[current->size++];
             next->move = current->checked++;
             to_move = play_move(&game_copy, next->move, to_move);
 
-            // Store new move
             history[++history_bound] = next;
 
-            // Look for next available move
+            // Look for next available move for next time 'current' is seen
             while (next->checked < board_size && game_copy.board[next->checked] != EMPTY)
                 next->checked++;
 
@@ -283,6 +283,7 @@ void make_move(Game* game) {
             if (next->result == EMPTY) {
                 result = rollout(&game_copy, to_move);
             } else {
+                next->checked = board_size;  // No point in checking further moves
                 result = next->result;
             }
         }
@@ -298,14 +299,20 @@ void make_move(Game* game) {
         best_depth = max(depth, best_depth);
     }
 
+    // Figure out the best move seen
+    float best_value = -1;
     for (int i = 0; i < root->size; i++ ) {
         cout << move_to_string(game, root->children[i]->move) << " " << root->children[i]->value << " " << root->actions << " " << root->children[i]->visits << endl;
+        if (root->children[i]->value > best_value) {
+            best_value = root->children[i]->value;
+            best_move = root->children[i]->move;
+        }
     }
 
     // Convert to human-readable form
     string move = move_to_string(game, best_move);
     cout << move << " " << best_depth << endl;
-    sety(game, move);
+    sety(game, best_move);
 
     return;
 }
@@ -318,6 +325,7 @@ void make_move(Game* game) {
  */
 TYPES rollout(Game* game, TYPES to_move) {
     vector<int> moves;
+    moves.reserve(pow(game->board_size, 2));
 
     // Get all available moves
     for (int i = 0; i < pow(game->board_size, 2); i++) {
@@ -329,7 +337,7 @@ TYPES rollout(Game* game, TYPES to_move) {
     random_device rd;
     default_random_engine rng(rd());
     shuffle(moves.begin(), moves.end(), rng);
-
+ 
     // Play until we reach a decisive conclusion
     TYPES result;
     do {
@@ -347,13 +355,9 @@ TYPES rollout(Game* game, TYPES to_move) {
  * @param game 
  * @param color 
  */
-void init_mcts_node(mcts_node* node, Game* game, TYPES color) {
-    int board_size = pow(game->board_size, 2);
-    node->children = vector<mcts_node*>(board_size);
- 
-    for (int i = 0; i < board_size; i++) {
-        node->children[i] = new mcts_node(color);
-    }
+void init_mcts_node(mcts_node* node, Game* game) {
+    int board_size = pow(game->board_size, 2) - game->move_cnt + 1;
+    node->children.reserve(board_size);
 
     // Look for first available open move
     while (node->checked < board_size && game->board[node->checked] != EMPTY)
@@ -372,9 +376,9 @@ void init_mcts_node(mcts_node* node, Game* game, TYPES color) {
  */
 TYPES play_move(Game* game, int move, TYPES to_move) {
     if (to_move == game->own_color)
-        sety(game, move_to_string(game, move));
+        sety(game, move);
     else
-        seto(game, move_to_string(game, move));
+        seto(game, move);
     
     game->last_move = move;
     game->move_cnt++;
@@ -387,9 +391,7 @@ TYPES play_move(Game* game, int move, TYPES to_move) {
  * @param game 
  * @param str 
  */
-void seto(Game* game, string str) {
-    int coord = str_to_move(game, str);
-
+void seto(Game* game, int coord) {
     if (coord < 0)
         swap(game);
     else if (game->board[coord] == EMPTY) {
@@ -406,9 +408,7 @@ void seto(Game* game, string str) {
  * @param game 
  * @param str 
  */
-void sety(Game* game, string str) {
-    int coord = str_to_move(game, str);
-
+void sety(Game* game, int coord) {
     if (coord < 0)
         swap(game);
     else if (game->board[coord] == EMPTY) {
