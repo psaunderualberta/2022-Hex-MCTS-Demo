@@ -1,5 +1,6 @@
 #include "game.h"
 // https://www.cs.cornell.edu/~adith/docs/y_hex.pdf
+// https://webdocs.cs.ualberta.ca/~hayward/papers/m2.pdf
 
 /**
  * @brief 
