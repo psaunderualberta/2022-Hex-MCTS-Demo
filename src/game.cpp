@@ -2,6 +2,9 @@
 // https://www.cs.cornell.edu/~adith/docs/y_hex.pdf
 // https://webdocs.cs.ualberta.ca/~hayward/papers/m2.pdf
 
+random_device rd;
+default_random_engine rng(rd());
+
 /**
  * @brief 
  * 
@@ -124,10 +127,10 @@ void unset(Game* game, string move) {
  * @return true 
  * @return false 
  */
-TYPES check_win(Game* game, bool check_all_and_print) {
+TYPES check_win(Game* game, bool print) {
     // Early termination if the game cannot be over
     if (game->move_cnt < game->board_size) {
-        if (check_all_and_print)
+        if (print)
             cout << "0" << endl;
 
         return EMPTY;
@@ -136,17 +139,11 @@ TYPES check_win(Game* game, bool check_all_and_print) {
     vector<bool> seen(game->board_size * game->board_size, false);
     vector<int>::size_type pos;
     vector<int> bfs;
+    bfs.reserve(pow(game->board_size, 2));
     string coord;
     TYPES current_color;
     int minPos, maxPos, minModPos, maxModPos;
-
-    // If we are searching, then we just need to look
-    // at the last move that was played.
-    int low, high;
-    if (check_all_and_print || game->last_move < 0)
-        low = 0, high = pow(game->board_size, 2);
-    else
-        low = game->last_move, high = game->last_move + 1;
+    int low = 0, high = pow(game->board_size, 2);
 
     for (int move = low; move < high; move++) {
         // TODO: Establish which direction to look
@@ -174,11 +171,11 @@ TYPES check_win(Game* game, bool check_all_and_print) {
                         // White touches left & right sides
                         // Black touches top & bottom
                         if (current_color == WHITE && minModPos == 0 && maxModPos == game->board_size - 1) {
-                            if (check_all_and_print)
+                            if (print)
                                 cout << (game->own_color == WHITE ? 1 : -1) << endl;
                             return WHITE;
                         } else if (current_color == BLACK && minPos < game->board_size && game->board_size * (game->board_size - 1) <= maxPos) {
-                            if (check_all_and_print)
+                            if (print)
                                 cout << (game->own_color == BLACK ? 1 : -1) << endl;
                             return BLACK;
                         }
@@ -192,7 +189,7 @@ TYPES check_win(Game* game, bool check_all_and_print) {
     }
 
     // No winner yet
-    if (check_all_and_print)
+    if (print)
         cout << "0" << endl;
 
     return EMPTY;
@@ -335,18 +332,18 @@ TYPES rollout(Game* game, TYPES to_move) {
     }
 
     // Shuffle the moves
-    random_device rd;
-    default_random_engine rng(rd());
     shuffle(moves.begin(), moves.end(), rng);
  
-    // Play until we reach a decisive conclusion
-    TYPES result;
+    // Since a win is not changed by continued play,
+    // We play out all moves and only search the board once.
+    // This legit has like 4x speedup over always checking
+    // if the game is over
+    vector<int>::size_type i = 0;
     do {
-        to_move = play_move(game, moves.back(), to_move);
-        moves.pop_back();
-    } while ((result = check_win(game, false)) == EMPTY);
+        to_move = play_move(game, moves[i++], to_move);
+    } while (i < moves.size());
 
-    return result;
+    return check_win(game, false);
 }
 
 /**
