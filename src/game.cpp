@@ -137,10 +137,9 @@ TYPES check_win(Game* game, bool print) {
     }
 
     vector<bool> seen(game->board_size * game->board_size, false);
-    vector<int>::size_type pos;
+    vector<int>::size_type pos = 0;
     vector<int> bfs;
     bfs.reserve(pow(game->board_size, 2));
-    string coord;
     TYPES current_color;
     int minPos, maxPos, minModPos, maxModPos;
     int low = 0, high = pow(game->board_size, 2);
@@ -149,7 +148,6 @@ TYPES check_win(Game* game, bool print) {
         // TODO: Establish which direction to look
         if (game->board[move] != EMPTY && !seen[move]) {
             current_color = game->board[move];
-            bfs.clear();
             bfs.push_back(move);
             seen[move] = true;
  
@@ -157,7 +155,7 @@ TYPES check_win(Game* game, bool print) {
             minPos = move, maxPos = move;
             minModPos = move % game->board_size, maxModPos = move % game->board_size;
 
-            for (pos = 0; pos < bfs.size(); pos++) {
+            for (; pos < bfs.size(); pos++) {
                 move = bfs[pos];
                 for (auto& next_move : game->neighbours[move]) {
                     if (game->board[next_move] == current_color && !seen[next_move]) {
@@ -300,8 +298,8 @@ void make_move(Game* game) {
     // Figure out the best move seen
     float best_value = -1;
     for (int i = 0; i < root->size; i++ ) {
-        cout << move_to_string(game, root->children[i]->move) << " " << root->children[i]->value << " " << root->actions << " " << root->children[i]->visits << endl;
-        if (root->children[i]->value > best_value) {
+        cout << move_to_string(game, root->children[i]->move) << " " << root->children[i]->value << " " << root->children[i]->value + C * sqrt(log(root->actions) / root->children[i]->visits) << " " << root->actions << " " << root->children[i]->visits << endl;
+        if (root->children[i]->value + C * sqrt(log(root->actions) / root->children[i]->visits) > best_value) {
             best_value = root->children[i]->value;
             best_move = root->children[i]->move;
         }
@@ -394,7 +392,6 @@ void seto(Game* game, int coord) {
         swap(game);
     else if (game->board[coord] == EMPTY) {
         game->board[coord] = game->opp_color;
-        game->move_cnt++;
     }
 
     return;
@@ -411,7 +408,6 @@ void sety(Game* game, int coord) {
         swap(game);
     else if (game->board[coord] == EMPTY) {
         game->board[coord] = game->own_color;
-        game->move_cnt++;
     }
 
     return;
