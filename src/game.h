@@ -7,6 +7,7 @@
 #include <cstring>
 #include <random>
 #include <algorithm>
+#include <bitset>
 
 using namespace std;
 
