@@ -15,6 +15,7 @@ void init_game(Game* game, int board_size) {
 
     // Create board size
     game->board_size = board_size;
+    game->move_cnt = 0;
 
     if (board_size > MAX_BOARD_SIZE) {
         cout << "ERROR: Board size must be less than " << MAX_BOARD_SIZE << endl;
@@ -26,6 +27,8 @@ void init_game(Game* game, int board_size) {
     }
 
     game->last_move = -1;
+    game->move_cnt = 0;
+
     // Initialize neighbours
     init_neighbours(game);
 
