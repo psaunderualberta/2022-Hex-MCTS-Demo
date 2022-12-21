@@ -207,11 +207,15 @@ void make_move(Game* game) {
     int depth = 0;
     int best_depth = 0;
     int board_size = pow(game->board_size, 2);
+    int move;
+    int history_bound;
+    float K = 10000;
+    float beta;
+    float value;
+    float best_value = -1;
     TYPES to_move = game->own_color;
     Game game_copy = *game;
 
-    vector<int>::size_type white_moves_idx;
-    vector<int>::size_type black_moves_idx;
     vector<int> white_moves;
     vector<int> black_moves;
     white_moves.reserve(MAX_BOARD_SIZE);
@@ -222,7 +226,6 @@ void make_move(Game* game) {
     init_mcts_node(root, &game_copy);
     root->result = check_win(&game_copy, false);
 
-    time_t start = time(nullptr);
     vector<mcts_node*> history(board_size + 1);
 
     mcts_node* current;
@@ -232,17 +235,16 @@ void make_move(Game* game) {
     float current_ucb_value;
 
     // Actual MCTS loop
+    time_t start = time(nullptr);
     while (time(nullptr) < start + TIMEOUT + 1) {
         game_copy = *game;  // Performs a copy
-        int history_bound = -1;
+        history_bound = -1;
         depth = -1;
         history[++history_bound] = current = root;
         to_move = game->own_color;
 
         white_moves.clear();
         black_moves.clear();
-        white_moves_idx = 0;
-        black_moves_idx = 0;
  
         // Selection Step
         while (current->result == EMPTY && current->checked == board_size) {
@@ -252,10 +254,15 @@ void make_move(Game* game) {
  
             // Select next node according to UCB
             for (int i = 0; i < current->size; i++) {
+                beta = 0;
+                move = current->children[i]->move;
+
                 if (depth % 2)  // Minimizing player
-                    current_ucb_value = 1 - current->children[i]->mc_value + C * sqrt(log(current->mc_count) / current->children[i]->mc_count);
+                    current_ucb_value = (1 - beta) * (1 - current->children[i]->mc_value) + beta * (1 - current->amaf_values[move]);
                 else  // Maximizing player
-                    current_ucb_value = current->children[i]->mc_value + C * sqrt(log(current->mc_count) / current->children[i]->mc_count);
+                    current_ucb_value = (1 - beta) * current->children[i]->mc_value + beta * current->amaf_values[move];
+
+                current_ucb_value += C * sqrt(log(current->mc_count) / current->children[i]->mc_count);
 
                 if (best_ucb_value < current_ucb_value) {
                     best_ucb_value = current_ucb_value;
@@ -263,13 +270,12 @@ void make_move(Game* game) {
                 }
             }
 
-            // Actually make the moves on the board
-
             if (to_move == BLACK)
-                black_moves.push_back(next->move), black_moves_idx++;
+                black_moves.push_back(next->move);
             else
-                white_moves.push_back(next->move), white_moves_idx++;
+                white_moves.push_back(next->move);
 
+            // Actually make the moves on the board
             to_move = play_move(&game_copy, next->move, to_move);
             history[++history_bound] = next;
             current = next; 
@@ -279,28 +285,27 @@ void make_move(Game* game) {
             result = current->result;
         } else {
             // Expansion Step
-            if (current->children.size() == 0)
-                init_mcts_node(current, &game_copy);
-
             // Make space for new move
             current->children.push_back(new mcts_node(to_move));
+            init_mcts_node(current->children.back(), &game_copy);
 
             // Play new move
             next = current->children[current->size++];
             next->move = current->checked++;
 
-            if (to_move == BLACK)
-                black_moves.push_back(next->move), black_moves_idx++;
-            else
-                white_moves.push_back(next->move), white_moves_idx++;
+            if (to_move == BLACK) {
+                black_moves.push_back(next->move);
+            } else {
+                white_moves.push_back(next->move);
+            }
 
             to_move = play_move(&game_copy, next->move, to_move);
 
             history[++history_bound] = next;
 
             // Look for next available move for next time 'current' is seen
-            while (next->checked < board_size && game_copy.board[next->checked] != EMPTY)
-                next->checked++;
+            while (current->checked < board_size && game_copy.board[current->checked] != EMPTY)
+                current->checked++;
 
             // Simulation Step
             next->result = check_win(&game_copy, false);
@@ -313,48 +318,50 @@ void make_move(Game* game) {
         }
 
         // Backpropagation Step
-        int largest_history_bound = history_bound;
-        for (; history_bound >= 0; history_bound--) {
-            history[history_bound]->mc_value *= history[history_bound]->mc_count;
-            history[history_bound]->mc_value += (result == game->own_color);
-            history[history_bound]->mc_value /= history[history_bound]->mc_count + 1;
+        for (int i = 0; i <= history_bound; i++) {
+            current = history[i];
+            current->mc_value *= current->mc_count;
+            current->mc_value += (result == game->own_color);
+            current->mc_value /= ++current->mc_count;
 
-            // Alter AMAF values
-            if (history_bound != largest_history_bound) {
-                if (history[history_bound]->player == BLACK) {
-                    for (auto& i = black_moves_idx; i < black_moves.size(); i++) {
-                        history[history_bound]->amaf_values[black_moves[i]] *= history[history_bound]->amaf_counts[black_moves[i]];
-                        history[history_bound]->amaf_values[black_moves[i]] += (result == game->own_color);
-                        history[history_bound]->amaf_values[black_moves[i]] /= ++history[history_bound]->amaf_counts[black_moves[i]];
-                    }
-                } else {
-                    for (auto& i = white_moves_idx; i < white_moves.size(); i++) {
-                        history[history_bound]->amaf_values[white_moves[i]] *= history[history_bound]->amaf_counts[white_moves[i]];
-                        history[history_bound]->amaf_values[white_moves[i]] += (result == game->own_color);
-                        history[history_bound]->amaf_values[white_moves[i]] /= ++history[history_bound]->amaf_counts[white_moves[i]];
-                    }
+            // Update AMAF values
+            if (current->player == BLACK) {
+                for (vector<int>::size_type j = i / 2; j < black_moves.size(); j++) {
+                    current->amaf_values[black_moves[j]] *= current->amaf_counts[black_moves[j]];
+                    current->amaf_values[black_moves[j]] += (result == game->own_color);
+                    current->amaf_values[black_moves[j]] /= ++current->amaf_counts[black_moves[j]];
+                }
+            } else {
+                for (vector<int>::size_type j = i / 2; j < white_moves.size(); j++) {
+                    current->amaf_values[white_moves[j]] *= current->amaf_counts[white_moves[j]];
+                    current->amaf_values[white_moves[j]] += (result == game->own_color);
+                    current->amaf_values[white_moves[j]] /= ++current->amaf_counts[white_moves[j]];
                 }
             }
-
-            history[history_bound]->mc_count++;
         }
 
         best_depth = max(depth, best_depth);
     }
-
+ 
     // Figure out the best move seen
-    float best_value = -1;
+    beta = sqrt(K / (3 * root->mc_count + K));
+    cout << beta << endl;
     for (int i = 0; i < root->size; i++ ) {
-        cout << move_to_string(game, root->children[i]->move) << " " << root->children[i]->mc_value << " " << root->children[i]->mc_value + C * sqrt(log(root->mc_count) / root->children[i]->mc_count) << " " << root->mc_count << " " << root->children[i]->mc_count << endl;
-        if (root->children[i]->mc_value > best_value) {
-            best_value = root->children[i]->mc_value;
+        move = root->children[i]->move;
+        value = (1 - beta) * root->children[i]->mc_value + beta * root->amaf_values[move];
+        cout << move_to_string(game, root->children[i]->move) << " ";
+        cout << root->children[i]->mc_value << " " << root->amaf_values[move] << " ";
+        cout << value << " ";
+        cout << root->mc_count << " ";
+        cout << root->children[i]->mc_count << endl;
+        if (value > best_value) {
+            best_value = value;
             best_move = root->children[i]->move;
         }
     }
 
     // Convert to human-readable form
-    string move = move_to_string(game, best_move);
-    cout << move << " " << best_depth << endl;
+    cout << move_to_string(game, best_move) << " " << best_depth << endl;
     sety(game, best_move);
 
     return;
@@ -384,16 +391,17 @@ TYPES rollout(Game* game, TYPES to_move, vector<int>* black_moves, vector<int>* 
     // This legit has like 4x speedup over always checking
     // if the game is over
     vector<int>::size_type i = 0;
-    do {
+    TYPES result;
+    while (i < moves.size() && (result = check_win(game, false)) == EMPTY) {
         if (to_move == BLACK)
             black_moves->push_back(moves[i]);
         else
             white_moves->push_back(moves[i]);
 
         to_move = play_move(game, moves[i++], to_move);
-    } while (i < moves.size());
+    };
 
-    return check_win(game, false);
+    return result;
 }
 
 /**
@@ -404,13 +412,13 @@ TYPES rollout(Game* game, TYPES to_move, vector<int>* black_moves, vector<int>* 
  * @param color 
  */
 void init_mcts_node(mcts_node* node, Game* game) {
-    int board_size = pow(game->board_size, 2) - game->move_cnt + 1;
-    node->amaf_values = vector<int>(pow(game->board_size, 2), 0);
+    // int board_size = pow(game->board_size, 2) - game->move_cnt + 1;
+    node->amaf_values = vector<float>(pow(game->board_size, 2), 0);
     node->amaf_counts = vector<int>(pow(game->board_size, 2), 0);
-    node->children.reserve(board_size);
+    node->children.reserve(pow(game->board_size, 2));
 
     // Look for first available open move
-    while (node->checked < board_size && game->board[node->checked] != EMPTY)
+    while (node->checked < pow(game->board_size, 2) && game->board[node->checked] != EMPTY)
         node->checked++;
 
     return;
