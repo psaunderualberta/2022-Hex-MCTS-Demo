@@ -212,6 +212,7 @@ void make_move(Game* game) {
 
     // Initialize the root node of the search tree.
     mcts_node* root = new mcts_node(game->own_color);
+    init_mcts_node(root, &game_copy);
     root->result = check_win(&game_copy, false);
 
     time_t start = time(nullptr);
@@ -260,11 +261,9 @@ void make_move(Game* game) {
             result = current->result;
         } else {
             // Expansion Step
-            if (current->children.size() == 0)
-                init_mcts_node(current, &game_copy);
-
             // Make space for new move
             current->children.push_back(new mcts_node(to_move));
+            init_mcts_node(current->children.back(), &game_copy);
 
             // Play new move
             next = current->children[current->size++];
