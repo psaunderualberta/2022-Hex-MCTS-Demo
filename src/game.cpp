@@ -130,10 +130,10 @@ void unset(Game* game, string move) {
  * @return true 
  * @return false 
  */
-TYPES check_win(Game* game, bool print) {
+TYPES check_win(Game* game, bool check_all_and_print) {
     // Early termination if the game cannot be over
     if (game->move_cnt < game->board_size) {
-        if (print)
+        if (check_all_and_print)
             cout << "0" << endl;
 
         return EMPTY;
@@ -145,18 +145,29 @@ TYPES check_win(Game* game, bool print) {
     bfs.reserve(pow(game->board_size, 2));
     TYPES current_color;
     int minPos, maxPos, minModPos, maxModPos;
-    int low = 0, high = pow(game->board_size, 2);
+    int move;
 
-    for (int move = low; move < high; move++) {
+    int low;
+    int high;
+    // If we are currently doing search,
+    // only check the last move as its
+    // the only one that could've affected the
+    // outcome of the game.
+    if (check_all_and_print)
+        low = 0, high = pow(game->board_size, 2);
+    else
+        low = game->last_move, high = game->last_move + 1;
+
+    for (int i = low; i < high; i++) {
         // TODO: Establish which direction to look
-        if (game->board[move] != EMPTY && !seen[move]) {
-            current_color = game->board[move];
-            bfs.push_back(move);
-            seen[move] = true;
+        if (game->board[i] != EMPTY && !seen[i]) {
+            current_color = game->board[i];
+            bfs.push_back(i);
+            seen[i] = true;
  
             // Get the best locations of the current path
-            minPos = move, maxPos = move;
-            minModPos = move % game->board_size, maxModPos = move % game->board_size;
+            minPos = i, maxPos = i;
+            minModPos = i % game->board_size, maxModPos = i % game->board_size;
 
             for (; pos < bfs.size(); pos++) {
                 move = bfs[pos];
@@ -171,12 +182,14 @@ TYPES check_win(Game* game, bool print) {
                         // Win conditions
                         // White touches left & right sides
                         // Black touches top & bottom
+                        if (check_all_and_print)
+                            cout << current_color << " " << next_move << " " << minModPos << " " << maxModPos << " " << minPos << " " << maxPos << endl;
                         if (current_color == WHITE && minModPos == 0 && maxModPos == game->board_size - 1) {
-                            if (print)
+                            if (check_all_and_print)
                                 cout << (game->own_color == WHITE ? 1 : -1) << endl;
                             return WHITE;
                         } else if (current_color == BLACK && minPos < game->board_size && game->board_size * (game->board_size - 1) <= maxPos) {
-                            if (print)
+                            if (check_all_and_print)
                                 cout << (game->own_color == BLACK ? 1 : -1) << endl;
                             return BLACK;
                         }
@@ -190,7 +203,7 @@ TYPES check_win(Game* game, bool print) {
     }
 
     // No winner yet
-    if (print)
+    if (check_all_and_print)
         cout << "0" << endl;
 
     return EMPTY;
@@ -209,7 +222,7 @@ void make_move(Game* game) {
     int board_size = pow(game->board_size, 2);
     int move;
     int history_bound;
-    float K = 10000;
+    float K = 100000;
     float beta;
     float value;
     float best_value = -1;
@@ -254,7 +267,7 @@ void make_move(Game* game) {
  
             // Select next node according to UCB
             for (int i = 0; i < current->size; i++) {
-                beta = 0;
+                beta = sqrt(K / (3 * current->mc_count + K));;
                 move = current->children[i]->move;
 
                 if (depth % 2)  // Minimizing player
@@ -270,11 +283,6 @@ void make_move(Game* game) {
                 }
             }
 
-            if (to_move == BLACK)
-                black_moves.push_back(next->move);
-            else
-                white_moves.push_back(next->move);
-
             // Actually make the moves on the board
             to_move = play_move(&game_copy, next->move, to_move);
             history[++history_bound] = next;
@@ -287,19 +295,13 @@ void make_move(Game* game) {
             // Expansion Step
             // Make space for new move
             current->children.push_back(new mcts_node(to_move));
-            init_mcts_node(current->children.back(), &game_copy);
 
             // Play new move
             next = current->children[current->size++];
             next->move = current->checked++;
 
-            if (to_move == BLACK) {
-                black_moves.push_back(next->move);
-            } else {
-                white_moves.push_back(next->move);
-            }
-
             to_move = play_move(&game_copy, next->move, to_move);
+            init_mcts_node(current->children.back(), &game_copy);
 
             history[++history_bound] = next;
 
@@ -325,7 +327,7 @@ void make_move(Game* game) {
             current->mc_value /= ++current->mc_count;
 
             // Update AMAF values
-            if (current->player == BLACK) {
+            if (current->player != BLACK) {
                 for (vector<int>::size_type j = i / 2; j < black_moves.size(); j++) {
                     current->amaf_values[black_moves[j]] *= current->amaf_counts[black_moves[j]];
                     current->amaf_values[black_moves[j]] += (result == game->own_color);
@@ -390,16 +392,16 @@ TYPES rollout(Game* game, TYPES to_move, vector<int>* black_moves, vector<int>* 
     // We play out all moves and only search the board once.
     // This legit has like 4x speedup over always checking
     // if the game is over
-    vector<int>::size_type i = 0;
     TYPES result;
-    while (i < moves.size() && (result = check_win(game, false)) == EMPTY) {
+    while ((result = check_win(game, false)) == EMPTY) {
         if (to_move == BLACK)
-            black_moves->push_back(moves[i]);
+            black_moves->push_back(moves.back());
         else
-            white_moves->push_back(moves[i]);
+            white_moves->push_back(moves.back());
 
-        to_move = play_move(game, moves[i++], to_move);
-    };
+        to_move = play_move(game, moves.back(), to_move);
+        moves.pop_back();
+    }
 
     return result;
 }
@@ -412,10 +414,10 @@ TYPES rollout(Game* game, TYPES to_move, vector<int>* black_moves, vector<int>* 
  * @param color 
  */
 void init_mcts_node(mcts_node* node, Game* game) {
-    // int board_size = pow(game->board_size, 2) - game->move_cnt + 1;
+    int board_size = pow(game->board_size, 2) - game->move_cnt + 1;
     node->amaf_values = vector<float>(pow(game->board_size, 2), 0);
     node->amaf_counts = vector<int>(pow(game->board_size, 2), 0);
-    node->children.reserve(pow(game->board_size, 2));
+    node->children.reserve(board_size);
 
     // Look for first available open move
     while (node->checked < pow(game->board_size, 2) && game->board[node->checked] != EMPTY)
